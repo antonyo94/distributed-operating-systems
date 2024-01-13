@@ -1,0 +1,92 @@
++---------------+
+| Docker[LOCAL] |
++---------------+
+
+cd Downloads
+cd docker-hadoop-master/
+docker-compose up -d
+docker ps
+http://localhost:9870
+docker container ls
+docker exec -it namenode bash
+
+ 
+
++-----------------------------+
+| Prepare Structure[NAMENODE] |
++-----------------------------+
+
+ /home/mp/data-algorithms-book/
+	 |
+	 |
+	 |--> /src/
+	 |
+	 |--> /lib/
+	 |
+	 |--> /dist/
+
+mkdir -p /home/mp/data-algorithms-book/ 
+mkdir /home/mp/data-algorithms-book/dist/
+
+
++------------------------------+
+| Copy file in NAMENODE[LOCAL] |
++------------------------------+
+
+b651c6864567  //ID namenode
+docker cp src b651c6864567:/home/mp/data-algorithms-book/src
+docker cp lib b651c6864567:/home/mp/data-algorithms-book/lib
+docker cp anagram b651c6864567:anagram
+
+
++-------------------+
+| Compile[NAMENODE] |
++-------------------+
+
+export CLASSPATH=/opt/hadoop-3.2.1/share/hadoop/common/hadoop-common-3.2.1.jar:/opt/hadoop-3.2.1/share/hadoop/mapreduce/hadoop-mapreduce-client-core-3.2.1.jar:/home/mp/data-algorithms-book/lib/log4j-1.2.17.jar:/home/mp/data-algorithms-book/lib/commons-lang-2.6.jar
+
+cd /home/mp/data-algorithms-book/src/main/java/org/dataalgorithms/chapB05/anagram/mapreduce/
+mkdir executables
+cd executables
+javac -cp $CLASSPATH -d /home/mp/data-algorithms-book/src/main/java/org/dataalgorithms/chapB05/anagram/mapreduce/executables/ /home/mp/data-algorithms-book/src/main/java/org/dataalgorithms/chapB05/anagram/mapreduce/*.java
+
+
+jar -cvf data_algorithms_book.jar -C /home/mp/data-algorithms-book/src/main/java/org/dataalgorithms/chapB05/anagram/mapreduce/executables/org/dataalgorithms/chapB05/anagram/mapreduce/ .
+#cd executables/org/dataalgorithms/chapB05/anagram/mapreduce/
+cp data_algorithms_book.jar /home/mp/data-algorithms-book/dist/
+cd /
+clear
+
+
++-------------------+
+| Export[NAMENODE]  |
++-------------------+
+export BOOK_HOME=/home/mp/data-algorithms-book
+export APP_JAR=$BOOK_HOME/dist/data_algorithms_book.jar
+export HADOOP_HOME=/opt/hadoop-3.1.3
+export INPUT=anagram/input/anagram.txt
+export OUTPUT=anagram/output
+export DRIVER=org.dataalgorithms.chapB05.anagram.mapreduce.AnagramDriver
+
+
++---------------------------------+
+| Copy file in HDFS(2) [NAMENODE] |
++---------------------------------+
+hadoop fs -mkdir /lib
+hadoop fs -copyFromLocal $APP_JAR  /lib/
+hadoop fs -copyFromLocal $BOOK_HOME/lib/*.jar  /lib/
+hadoop fs -mkdir anagram
+hadoop fs -put anagram/ anagram
+hadoop fs -cat anagram/input/anagram.txt
+
+
++--------------------+
+| Execute [NAMENODE] |
++--------------------+
+hadoop jar $APP_JAR $DRIVER 2 $INPUT $OUTPUT
+hadoop fs -cat anagram/output/part-r-00000
+hadoop fs -rm -r anagram/output/
+
+
+docker-compose down
+docker container prune
